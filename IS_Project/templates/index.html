@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Two-Layer Real-Time IPS Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    
+    <style>
+        body { background-color: #f8f9fa; }
+        .dashboard-header { background-color: #0d47a1; color: white; padding: 20px 0; margin-bottom: 30px; }
+        .log-box { max-height: 60vh; overflow-y: scroll; }
+        .attack-badge { min-width: 100px; font-weight: bold; }
+        /* Layer 1 Alert (Yellow/Warning) */
+        .bg-protocol { background-color: #ffc107 !important; color: #333 !important; }
+        /* Layer 2 Alert (Red/Danger) */
+        .bg-flow { background-color: #dc3545 !important; }
+    </style>
+</head>
+<body>
+
+<div class="dashboard-header text-center">
+    <h1>TWO-LAYER INTRUSION PREVENTION SYSTEM (IPS)</h1>
+    <p class="lead">Layer 1: Protocol Anomaly | Layer 2: Flow Pattern Detection</p>
+</div>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-md-4">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-dark text-white">System Status</div>
+                <div class="card-body">
+                    <p class="mb-2">Total Flows Processed: <span id="total-flows" class="fw-bold text-success">0</span></p>
+                    <p class="mb-2">Active Flows Sniffing: <span id="active-flows" class="fw-bold text-info">0</span></p>
+                    <p class="mb-2">Sniffing Status: <span class="badge bg-success">LIVE</span></p>
+                </div>
+            </div>
+            
+            <div class="card shadow-sm">
+                <div class="card-header bg-danger text-white">Detection Summary</div>
+                <div class="card-body">
+                    <p class="mb-1">Last Alert:</p>
+                    <h4 id="last-attack-type" class="fw-bold text-danger">None Detected</h4>
+                    <small>Time: <span id="last-attack-time">--:--:--</span></small>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-md-8">
+            <div class="card shadow-lg">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0">🚨 Real-Time Alert Log</h5>
+                </div>
+                <div class="card-body log-box" id="attacks-container">
+                    <p class="text-muted text-center mt-3">Waiting for first detection...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Helper function to assign color based on the type of detection
+    function getBadgeClass(attackType) {
+        if (attackType === 'PROTOCOL_ANOMALY') return 'bg-protocol';
+        if (attackType === 'BENIGN') return 'bg-success';
+        return 'bg-danger bg-flow';
+    }
+
+    // CRITICAL: AJAX POLLING FUNCTION to fetch data from Flask backend
+    function updateDashboard() {
+        $.getJSON('/data', function(data) {
+            
+            // 1. Update Status Panel
+            $('#total-flows').text(data.total_flows);
+            $('#active-flows').text(data.active_flows);
+
+            // 2. Update Attack Log
+            const container = $('#attacks-container');
+            container.empty();
+            
+            if (data.attacks.length > 0) {
+                const latest = data.attacks[0];
+                $('#last-attack-type').text(latest.attack);
+                $('#last-attack-time').text(latest.timestamp);
+
+                // Build a simple table for logs
+                const table = $('<table class="table table-sm table-borderless mb-0"><thead><tr><th>Time</th><th>Type</th><th>Source Address</th><th>Destination</th></tr></thead><tbody></tbody></table>');
+                const tbody = table.find('tbody');
+
+                data.attacks.slice(0, 100).forEach(log => {
+                    const row = `
+                        <tr>
+                            <td>${log.timestamp}</td>
+                            <td><span class="badge ${getBadgeClass(log.attack)} attack-badge">${log.attack}</span></td>
+                            <td>${log.source}</td>
+                            <td>${log.destination}</td>
+                        </tr>
+                    `;
+                    tbody.append(row);
+                });
+                container.append(table);
+
+            } else {
+                 $('#last-attack-type').text('None Detected');
+                 $('#last-attack-time').text('--:--:--');
+                 container.append('<p class="text-muted text-center mt-3">Waiting for first detection...</p>');
+            }
+        });
+    }
+
+    // Start Polling every 1 second (1000 milliseconds)
+    $(document).ready(function() {
+        updateDashboard();
+        setInterval(updateDashboard, 1000); 
+    });
+</script>
+</body>
+</html>
