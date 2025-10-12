@@ -11,9 +11,7 @@
         .dashboard-header { background-color: #0d47a1; color: white; padding: 20px 0; margin-bottom: 30px; }
         .log-box { max-height: 60vh; overflow-y: scroll; }
         .attack-badge { min-width: 100px; font-weight: bold; }
-        /* Layer 1 Alert (Yellow/Warning) */
         .bg-protocol { background-color: #ffc107 !important; color: #333 !important; }
-        /* Layer 2 Alert (Red/Danger) */
         .bg-flow { background-color: #dc3545 !important; }
     </style>
 </head>
@@ -32,16 +30,17 @@
                 <div class="card-body">
                     <p class="mb-2">Total Flows Processed: <span id="total-flows" class="fw-bold text-success">0</span></p>
                     <p class="mb-2">Active Flows Sniffing: <span id="active-flows" class="fw-bold text-info">0</span></p>
-                    <p class="mb-2">Sniffing Status: <span class="badge bg-success">LIVE</span></p>
+                    <p class="mb-2">Mode: <span id="current-mode" class="badge bg-success">LIVE</span></p>
                 </div>
             </div>
-            
+
+            <!-- ✅ Start/Stop Testing Buttons -->
             <div class="card shadow-sm">
-                <div class="card-header bg-danger text-white">Detection Summary</div>
-                <div class="card-body">
-                    <p class="mb-1">Last Alert:</p>
-                    <h4 id="last-attack-type" class="fw-bold text-danger">None Detected</h4>
-                    <small>Time: <span id="last-attack-time">--:--:--</span></small>
+                <div class="card-header bg-warning text-dark">Testing Control</div>
+                <div class="card-body d-grid gap-2">
+                    <button id="start-test-btn" onclick="startTesting()" class="btn btn-success w-100">▶ Start Testing</button>
+                    <button id="stop-test-btn" onclick="stopTesting()" class="btn btn-danger w-100" disabled>🛑 Stop Testing</button>
+                    <small class="text-muted">Click to start/stop testing mode (dummy attacks / dataset replay).</small>
                 </div>
             </div>
         </div>
@@ -60,22 +59,23 @@
 </div>
 
 <script>
-    // Helper function to assign color based on the type of detection
+    let testingMode = false;
+
     function getBadgeClass(attackType) {
         if (attackType === 'PROTOCOL_ANOMALY') return 'bg-protocol';
         if (attackType === 'BENIGN') return 'bg-success';
         return 'bg-danger bg-flow';
     }
 
-    // CRITICAL: AJAX POLLING FUNCTION to fetch data from Flask backend
     function updateDashboard() {
         $.getJSON('/data', function(data) {
-            
-            // 1. Update Status Panel
             $('#total-flows').text(data.total_flows);
             $('#active-flows').text(data.active_flows);
 
-            // 2. Update Attack Log
+            $('#current-mode').text(data.sim_running ? 'TESTING' : 'LIVE')
+                              .removeClass('bg-success bg-warning')
+                              .addClass(data.sim_running ? 'bg-warning' : 'bg-success');
+
             const container = $('#attacks-container');
             container.empty();
             
@@ -84,8 +84,7 @@
                 $('#last-attack-type').text(latest.attack);
                 $('#last-attack-time').text(latest.timestamp);
 
-                // Build a simple table for logs
-                const table = $('<table class="table table-sm table-borderless mb-0"><thead><tr><th>Time</th><th>Type</th><th>Source Address</th><th>Destination</th></tr></thead><tbody></tbody></table>');
+                const table = $('<table class="table table-sm table-borderless mb-0"><thead><tr><th>Time</th><th>Type</th><th>Source</th><th>Destination</th></tr></thead><tbody></tbody></table>');
                 const tbody = table.find('tbody');
 
                 data.attacks.slice(0, 100).forEach(log => {
@@ -95,21 +94,32 @@
                             <td><span class="badge ${getBadgeClass(log.attack)} attack-badge">${log.attack}</span></td>
                             <td>${log.source}</td>
                             <td>${log.destination}</td>
-                        </tr>
-                    `;
+                        </tr>`;
                     tbody.append(row);
                 });
                 container.append(table);
-
             } else {
-                 $('#last-attack-type').text('None Detected');
-                 $('#last-attack-time').text('--:--:--');
                  container.append('<p class="text-muted text-center mt-3">Waiting for first detection...</p>');
             }
         });
     }
 
-    // Start Polling every 1 second (1000 milliseconds)
+    function startTesting() {
+        $.post('/start', function(res) {
+            testingMode = true;
+            $('#start-test-btn').attr('disabled', true);
+            $('#stop-test-btn').attr('disabled', false);
+        });
+    }
+
+    function stopTesting() {
+        $.post('/stop', function(res) {
+            testingMode = false;
+            $('#start-test-btn').attr('disabled', false);
+            $('#stop-test-btn').attr('disabled', true);
+        });
+    }
+
     $(document).ready(function() {
         updateDashboard();
         setInterval(updateDashboard, 1000); 
