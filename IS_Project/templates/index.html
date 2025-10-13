@@ -7,51 +7,66 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     
     <style>
-        body { background-color: #f8f9fa; }
-        .dashboard-header { background-color: #0d47a1; color: white; padding: 20px 0; margin-bottom: 30px; }
-        .log-box { max-height: 60vh; overflow-y: scroll; }
-        .attack-badge { min-width: 100px; font-weight: bold; }
-        .bg-protocol { background-color: #ffc107 !important; color: #333 !important; }
-        .bg-flow { background-color: #dc3545 !important; }
+        /* [ Style section is the same as the previous version, omitted for brevity ] */
+        body { background-color: #f0f2f5; }
+        .dashboard-header { background: linear-gradient(90deg, #0d47a1, #1976d2); color: white; padding: 20px 0; margin-bottom: 30px; }
+        .log-box { max-height: 70vh; overflow-y: scroll; font-family: 'Courier New', Courier, monospace; font-size: 0.9rem;}
+        .stat-card { text-align: center; }
+        .layer-badge { font-weight: bold; padding: 5px 10px; color: white; border-radius: 5px; }
+        .layer-1 { background-color: #ff9800; }
+        .layer-2 { background-color: #e91e63; }
+        .alert-row:hover, .packet-row:hover { background-color: #e9ecef; }
+        .content-preview {
+            white-space: pre-wrap; word-break: break-all; background-color: #f8f9fa;
+            padding: 2px 5px; border-radius: 3px; max-width: 300px;
+            overflow: hidden; text-overflow: ellipsis;
+        }
     </style>
 </head>
 <body>
 
 <div class="dashboard-header text-center">
-    <h1>TWO-LAYER INTRUSION PREVENTION SYSTEM (IPS)</h1>
-    <p class="lead">Layer 1: Protocol Anomaly | Layer 2: Flow Pattern Detection</p>
+    <h1>ADVANCED INTRUSION PREVENTION SYSTEM</h1>
+    <p class="lead">Live Analysis & Demo Test Mode</p>
 </div>
 
 <div class="container-fluid">
     <div class="row">
-        <div class="col-md-4">
-            <div class="card shadow-sm mb-4">
-                <div class="card-header bg-dark text-white">System Status</div>
-                <div class="card-body">
-                    <p class="mb-2">Total Flows Processed: <span id="total-flows" class="fw-bold text-success">0</span></p>
-                    <p class="mb-2">Active Flows Sniffing: <span id="active-flows" class="fw-bold text-info">0</span></p>
-                    <p class="mb-2">Mode: <span id="current-mode" class="badge bg-success">LIVE</span></p>
+        <div class="col-md-3">
+            <div class="card shadow-sm mb-3">
+                <div class="card-header bg-dark text-white">Live System Statistics</div>
+                <div class="card-body stat-card">
+                    <p>Packets Processed: <strong id="total-packets">0</strong></p>
+                    <p>Content Threats: <strong id="content-threats">0</strong></p>
+                    <p>Behavioral Threats: <strong id="behavior-threats">0</strong></p>
+                    <p>IPs Blocklisted: <strong id="blocked-ips">0</strong></p>
                 </div>
             </div>
-
-            <!-- ✅ Start/Stop Testing Buttons -->
+            
             <div class="card shadow-sm">
-                <div class="card-header bg-warning text-dark">Testing Control</div>
+                <div class="card-header bg-info text-dark">Demo Control</div>
                 <div class="card-body d-grid gap-2">
-                    <button id="start-test-btn" onclick="startTesting()" class="btn btn-success w-100">▶ Start Testing</button>
-                    <button id="stop-test-btn" onclick="stopTesting()" class="btn btn-danger w-100" disabled>🛑 Stop Testing</button>
-                    <small class="text-muted">Click to start/stop testing mode (dummy attacks / dataset replay).</small>
+                    <button id="start-test-btn" onclick="startTest()" class="btn btn-success w-100">▶ Run Demo Test</button>
+                    <button id="stop-test-btn" onclick="stopTest()" class="btn btn-danger w-100" disabled>🛑 Stop Test</button>
+                    <small class="text-muted">Processes the `test_packets.pcap` file to verify detection.</small>
+                    <p class="mb-0 mt-2">Mode: <span id="current-mode" class="badge bg-primary">LIVE SNIFFING</span></p>
                 </div>
             </div>
         </div>
 
-        <div class="col-md-8">
+        <div class="col-md-4">
             <div class="card shadow-lg">
-                <div class="card-header bg-dark text-white">
-                    <h5 class="mb-0">🚨 Real-Time Alert Log</h5>
+                <div class="card-header bg-dark text-white"><h5 class="mb-0">📡 Live Packet Log</h5></div>
+                <div class="card-body log-box p-0" id="processed-packets-container">
+                    <p class="text-muted text-center m-3">Listening...</p>
                 </div>
-                <div class="card-body log-box" id="attacks-container">
-                    <p class="text-muted text-center mt-3">Waiting for first detection...</p>
+            </div>
+        </div>
+        <div class="col-md-5">
+            <div class="card shadow-lg">
+                <div class="card-header bg-dark text-white"><h5 class="mb-0">🚨 Security Alerts</h5></div>
+                <div class="card-body log-box p-0" id="alerts-container">
+                    <p class="text-muted text-center m-3">No threats detected yet.</p>
                 </div>
             </div>
         </div>
@@ -59,70 +74,67 @@
 </div>
 
 <script>
-    let testingMode = false;
-
-    function getBadgeClass(attackType) {
-        if (attackType === 'PROTOCOL_ANOMALY') return 'bg-protocol';
-        if (attackType === 'BENIGN') return 'bg-success';
-        return 'bg-danger bg-flow';
-    }
-
     function updateDashboard() {
         $.getJSON('/data', function(data) {
-            $('#total-flows').text(data.total_flows);
-            $('#active-flows').text(data.active_flows);
+            // Stats update is the same
+            $('#total-packets').text(data.total_packets);
+            $('#content-threats').text(data.content_threats);
+            $('#behavior-threats').text(data.behavior_threats);
+            $('#blocked-ips').text(data.blocked_ips);
 
-            $('#current-mode').text(data.sim_running ? 'TESTING' : 'LIVE')
-                              .removeClass('bg-success bg-warning')
-                              .addClass(data.sim_running ? 'bg-warning' : 'bg-success');
-
-            const container = $('#attacks-container');
-            container.empty();
+            // Mode indicator
+            const modeSpan = $('#current-mode');
+            if (data.sim_running) {
+                modeSpan.text('TEST RUNNING').removeClass('bg-primary').addClass('bg-warning');
+                $('#start-test-btn').prop('disabled', true);
+                $('#stop-test-btn').prop('disabled', false);
+            } else {
+                modeSpan.text('LIVE SNIFFING').removeClass('bg-warning').addClass('bg-primary');
+                $('#start-test-btn').prop('disabled', false);
+                $('#stop-test-btn').prop('disabled', true);
+            }
             
-            if (data.attacks.length > 0) {
-                const latest = data.attacks[0];
-                $('#last-attack-type').text(latest.attack);
-                $('#last-attack-time').text(latest.timestamp);
-
-                const table = $('<table class="table table-sm table-borderless mb-0"><thead><tr><th>Time</th><th>Type</th><th>Source</th><th>Destination</th></tr></thead><tbody></tbody></table>');
+            // Log rendering is the same
+            const alertsContainer = $('#alerts-container');
+            alertsContainer.empty();
+            if (data.alerts.length > 0) {
+                const table = $('<table class="table table-sm table-borderless mb-0"><thead><tr><th>Layer</th><th>Alert</th><th>Source</th><th>Content</th></tr></thead><tbody></tbody></table>');
                 const tbody = table.find('tbody');
-
-                data.attacks.slice(0, 100).forEach(log => {
-                    const row = `
-                        <tr>
-                            <td>${log.timestamp}</td>
-                            <td><span class="badge ${getBadgeClass(log.attack)} attack-badge">${log.attack}</span></td>
-                            <td>${log.source}</td>
-                            <td>${log.destination}</td>
-                        </tr>`;
+                data.alerts.forEach(log => {
+                    const row = `<tr class="alert-row"><td><span class="layer-badge layer-${log.layer}">L${log.layer}</span></td><td>${log.alert_type}<br><small>${log.details}</small></td><td>${log.source_ip}</td><td><div class="content-preview" title="${escape(log.content)}">${escape(log.content)}</div></td></tr>`;
                     tbody.append(row);
                 });
-                container.append(table);
-            } else {
-                 container.append('<p class="text-muted text-center mt-3">Waiting for first detection...</p>');
-            }
+                alertsContainer.append(table);
+            } else { alertsContainer.append('<p class="text-muted text-center m-3">No threats detected.</p>'); }
+
+            const packetsContainer = $('#processed-packets-container');
+            packetsContainer.empty();
+            if (data.processed_packets.length > 0) {
+                const table = $('<table class="table table-sm table-borderless mb-0"><thead><tr><th>Time</th><th>Source → Dest</th><th>Proto</th></tr></thead><tbody></tbody></table>');
+                const tbody = table.find('tbody');
+                data.processed_packets.forEach(pkt => {
+                    const row = `<tr class="packet-row"><td>${pkt.timestamp}</td><td>${pkt.source} → ${pkt.destination}</td><td>${pkt.protocol}</td></tr>`;
+                    tbody.append(row);
+                });
+                packetsContainer.append(table);
+            } else { packetsContainer.append('<p class="text-muted text-center m-3">No packets processed in this mode.</p>'); }
         });
     }
 
-    function startTesting() {
-        $.post('/start', function(res) {
-            testingMode = true;
-            $('#start-test-btn').attr('disabled', true);
-            $('#stop-test-btn').attr('disabled', false);
-        });
+    // --- NEW: Functions for the test buttons ---
+    function startTest() {
+        $.post('/start_test');
     }
 
-    function stopTesting() {
-        $.post('/stop', function(res) {
-            testingMode = false;
-            $('#start-test-btn').attr('disabled', false);
-            $('#stop-test-btn').attr('disabled', true);
-        });
+    function stopTest() {
+        $.post('/stop_test');
     }
+
+    function escape(str) { return $('<div>').text(str).html(); }
 
     $(document).ready(function() {
         updateDashboard();
-        setInterval(updateDashboard, 1000); 
+        setInterval(updateDashboard, 1500);
     });
 </script>
 </body>
